@@ -1,0 +1,37 @@
+# CI/CD Application Handoff Template
+# 실제 Secret 값은 작성하지 않습니다.
+
+repository:
+branch: develop
+
+build_command: ""
+test_command: ""
+
+dockerfile_path: ""
+container_image_name: ai-api
+
+application_port: 8000
+health_check_path: ""
+metrics_path: ""
+
+environment_variables:
+  # - name: EXAMPLE
+  #   purpose: 설명
+
+secret_variables:
+  # 이름과 용도만 작성
+  # - name: EXAMPLE_SECRET
+  #   purpose: 설명
+
+resources:
+  cpu: ""
+  memory: ""
+  gpu: false
+
+external_dependencies:
+  # - PostgreSQL
+  # - pgvector
+  # - Redis
+  # - LLM API
+
+notes: ""
