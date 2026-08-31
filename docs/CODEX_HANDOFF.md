@@ -10,6 +10,8 @@ This repository is the AI part of MoongCheap. The current MVP is:
 
 This working branch implements the A-part data foundation: AI-Hub inspection, observed KAN category handling, product staging/identity resolution, MFDS collection/parsing, and Rule-based Facet Discovery V0. It does not implement Clustering or Seller Matching.
 
+Implementation lives under `src/moongcheap_ai`; domain-owned additions belong under `src/moongcheap_ai/parts/<part_name>` with matching tests under `tests/<part_name>`.
+
 ## Source of truth
 
 Read the latest project instructions supplied by the project owner before changing behavior. Do not revive Naver Shopping, GobizKorea, Open Icecat, K-FIND, Domeggook, Consumer RAG, or an AI-owned database.
