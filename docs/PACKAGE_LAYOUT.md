@@ -6,11 +6,11 @@ under `moongcheap_ai` while new domain-specific code belongs in `parts/`.
 
 ```text
 src/moongcheap_ai/
-├── parts/
-│   ├── aihub/              # 상품 데이터·Category·Facet·Labeling
-│   ├── demand_clustering/  # Consumer Demand grouping and board assignment
-│   ├── seller_matching/    # Seller Offer comparison and scoring
-│   └── seller_analysis/    # 판매자용 수요 집계와 분석
+├── data_foundation/        # 상품 데이터·Category·Facet·Labeling
+├── demand_clustering/      # Consumer Demand grouping and board assignment
+├── seller_matching/        # Seller Offer comparison and scoring
+├── seller_analysis/        # 판매자용 수요 집계와 분석
+├── parts/                  # 기존 호환 경로; 신규 코드는 기능별 최상위 패키지에 추가
 ├── catalog.py              # shared catalog primitives
 ├── facet.py                # shared facet primitives
 └── pipeline.py             # stage orchestration

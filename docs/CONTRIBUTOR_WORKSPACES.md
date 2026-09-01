@@ -4,9 +4,9 @@
 
 | 담당 영역 | 주요 책임 | 주요 경로 | Branch 접두사 |
 |---|---|---|---|
-| 데이터·Category·Facet·Demand Labeling | 상품 데이터 수집·전처리, Category/Catalog 후보, Facet 도출, Demand Labeling, Clustering 입력 생성 | `src/moongcheap_ai/parts/aihub/`, `catalog.py`, `facet.py`, 데이터 처리 스크립트 | `feat/data-` |
-| Consumer Demand Clustering | Labeling 결과 기반 수요 묶음, Facet·가격·수량·대체 조건 비교, Cluster 집계 | `src/moongcheap_ai/parts/demand_clustering/` | `feat/clustering-` |
-| Seller Matching·Demand Analysis·E2E | Cluster와 Seller Offer 비교, 평가·순위, 판매자용 분석, 전체 로컬 연결 | `src/moongcheap_ai/parts/seller_matching/`, `src/moongcheap_ai/parts/seller_analysis/` | `feat/seller-` |
+| 데이터·Category·Facet·Demand Labeling | 상품 데이터 수집·전처리, Category/Catalog 후보, Facet 도출, Demand Labeling, Clustering 입력 생성 | `src/moongcheap_ai/data_foundation/`, `catalog.py`, `facet.py`, 데이터 처리 스크립트 | `feat/data-` |
+| Consumer Demand Clustering | Labeling 결과 기반 수요 묶음, Facet·가격·수량·대체 조건 비교, Cluster 집계 | `src/moongcheap_ai/demand_clustering/` | `feat/clustering-` |
+| Seller Matching·Demand Analysis·E2E | Cluster와 Seller Offer 비교, 평가·순위, 판매자용 분석, 전체 로컬 연결 | `src/moongcheap_ai/seller_matching/`, `src/moongcheap_ai/seller_analysis/` | `feat/seller-` |
 
 담당자 계정은 문서에 기록하지 않는다. 담당자별 검토 정책이 필요해지면 `.github/CODEOWNERS`에 계정을 추가한다.
 
