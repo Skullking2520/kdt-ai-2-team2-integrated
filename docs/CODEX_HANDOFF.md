@@ -10,7 +10,7 @@
 
 현재 작업 Branch에는 AI-Hub 점검, 관측된 KAN Category 처리, 상품 staging 및 식별, MFDS 수집·파싱, Rule 기반 Facet 후보 도출 V0가 포함되어 있습니다. Clustering과 Seller Matching은 아직 구현하지 않았습니다.
 
-Implementation lives under `src/moongcheap_ai`; domain-owned additions belong under `src/moongcheap_ai/parts/<part_name>` with matching tests under `tests/<part_name>`.
+Implementation lives under `src/moongcheap_ai`; data, Category, Facet, and Labeling additions belong under `src/moongcheap_ai/data_foundation/`, with matching tests under `tests/data_foundation/`.
 
 ## 기준 원칙
 

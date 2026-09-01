@@ -18,7 +18,7 @@ from .data_foundation.category_seed import CategorySeedError, build_health_categ
 from .data_foundation.inspect_data import inspect
 from .data_foundation.mfds import MFDSCollectionError, collect
 from .data_foundation import read_coco_json
-from .parts.aihub.exploratory_facet import build_exploratory_facets
+from .data_foundation.exploratory_facet import build_exploratory_facets
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 LOGGER = logging.getLogger(__name__)
