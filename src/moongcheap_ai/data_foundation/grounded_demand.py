@@ -52,8 +52,10 @@ def _load_catalog(product_path: Path, mapping_path: Path) -> pd.DataFrame:
     columns = ["source_product_id", "name", "category_id", "category_name"]
     merged = products[["source_product_id", "name"]].merge(mapping[["source_product_id", "category_id", "category_name"]], on="source_product_id", how="inner")
     merged = merged.drop_duplicates("source_product_id")
+    merged["category_candidate_key"] = merged["category_id"]
+    merged["category_id"] = "health-functional-food:" + merged["category_id"].astype(str).str.lower()
     merged["catalog_id"] = "catalog-seed-" + merged["source_product_id"].astype(str)
-    return merged[columns + ["catalog_id"]]
+    return merged[columns + ["catalog_id", "category_candidate_key"]]
 
 
 def _load_values(taxonomy_path: Path) -> dict[str, list[dict[str, str]]]:
@@ -105,6 +107,7 @@ def generate_grounded_demands(
             "demand_id": f"synthetic-grounded-demand-{index + 1:05d}",
             "catalog_id": product["catalog_id"],
             "category_id": product["category_id"],
+            "category_candidate_key": product["category_candidate_key"],
             "extra_requirement": style.format(value=candidate["value"]),
             "desired_price_min": minimum,
             "desired_price_max": maximum,
