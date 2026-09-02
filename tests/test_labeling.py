@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from moongcheap_ai.data_foundation.labeling import TaxonomyLoader, TaxonomyValidationError, label_demands
+from moongcheap_ai.data_foundation.labeling import TaxonomyLoader, TaxonomyValidationError, build_product_facet_map, label_demands
 
 
 TAXONOMY = {"categories": [{"category_id": "C1", "facets": [{"name": "sugar_type", "order": 1, "values": [
@@ -65,3 +65,19 @@ def test_batch_can_resolve_category_through_catalog_id() -> None:
     loader = TaxonomyLoader(TAXONOMY)
     result = label_demands(pd.DataFrame([{"demand_id": "D2", "catalog_id": "P2", "extra_requirement": "무설탕"}]), loader, {"P2": "C1"})
     assert result.iloc[0]["label"] == "2"
+
+
+def test_product_facets_are_defaults_and_extra_requirement_wins() -> None:
+    loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}, {"code": 2, "value": "분말"}]},
+        {"name": "sugar", "order": 2, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "무설탕"}, {"code": 2, "value": "당류"}]},
+    ]}]})
+    facets = build_product_facet_map(pd.DataFrame([{
+        "source_product_id": "P1", "facet_name": "old_form_name", "source_field": "form", "value": "정제", "mapping_status": "MAPPED",
+    }]))
+    result = label_demands(pd.DataFrame([{
+        "demand_id": "D1", "catalog_id": "catalog-seed-P1", "category_id": "C1", "extra_requirement": "분말",
+        "is_substitutable": False,
+    }]), loader, product_facet_map=facets)
+    assert '"form":{"code":2' in result.loc[0, "facet_values"]
+    assert '"sugar":{"code":0' in result.loc[0, "facet_values"]
