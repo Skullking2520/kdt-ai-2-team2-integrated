@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from moongcheap_ai.data_foundation.labeling import TaxonomyLoader, TaxonomyValidationError, build_product_facet_map, label_demands
+from moongcheap_ai.data_foundation.facet_codebook import build_clustering_input, load_codebook
 
 
 TAXONOMY = {"categories": [{"category_id": "C1", "facets": [{"name": "sugar_type", "order": 1, "values": [
@@ -81,3 +82,19 @@ def test_product_facets_are_defaults_and_extra_requirement_wins() -> None:
     }]), loader, product_facet_map=facets)
     assert '"form":{"code":2' in result.loc[0, "facet_values"]
     assert '"sugar":{"code":0' in result.loc[0, "facet_values"]
+
+
+def test_codebook_and_clustering_vector_keep_facet_identity(tmp_path) -> None:
+    taxonomy_path = tmp_path / "taxonomy.json"
+    taxonomy_path.write_text(__import__("json").dumps({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}]},
+    ]}]}), encoding="utf-8")
+    codebook = load_codebook(taxonomy_path)
+    result = build_clustering_input(pd.DataFrame([{
+        "demand_id": "D1", "catalog_id": "P1", "category_id": "C1", "label": "1",
+        "facet_values": '{"form":{"code":1,"value":"정제"}}', "is_substitutable": "false",
+        "desired_price_min": "0", "desired_price_max": "10000", "quantity": "1",
+    }]), codebook)
+    assert result.loc[0, "facet_label"] == "1"
+    assert result.loc[0, "facet_1_form_code"] == 1
+    assert result.loc[0, "taxonomy_version"] == "v2.1"

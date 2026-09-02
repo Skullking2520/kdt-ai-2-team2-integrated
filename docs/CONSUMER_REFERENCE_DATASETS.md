@@ -29,3 +29,12 @@ python scripts/demand/generate_grounded_demands.py --count 100
 점검 결과는 `data/reports/consumer_reference/DATASET_STATUS.md`와 `dataset_inventory.json`에 생성된다. `data/raw/`와 `data/reports/`는 Git 제외 대상이다.
 
 생성 결과는 `data/synthetic/consumer_reference/grounded_demand_v1.csv`에 저장된다. 이 파일은 실제 사용자 요청이 아니라 테스트용 Synthetic Demand이며, 생성 후 기존 Labeling을 실행해야 한다.
+
+Labeling 결과를 클러스터링 입력으로 펼치려면 다음 명령을 실행한다.
+
+```powershell
+$env:PYTHONPATH="src"
+python scripts/facet/build_facet_codebook.py
+```
+
+`data/processed/facet_codebook_v2_1/` 아래에 Category별 Codebook과 Facet별 숫자 코드 컬럼을 가진 `clustering_input_v2_1.csv`가 생성된다. 클러스터링 비교는 `facet_values` 또는 Facet 코드 컬럼을 사용하고, `facet_label`은 압축 키로 사용한다.
