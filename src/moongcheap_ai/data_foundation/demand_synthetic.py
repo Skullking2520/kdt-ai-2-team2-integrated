@@ -77,7 +77,8 @@ def prepare_demand_input(frame: pd.DataFrame, *, allow_open_ended_price: bool = 
         lambda value: str(value).strip().casefold() not in {"false", "0", "no", "n"}
     )
     result["synthetic"] = True
-    return result[list(REQUIRED_COLUMNS)]
+    extra_columns = [column for column in frame.columns if column not in REQUIRED_COLUMNS]
+    return result[list(REQUIRED_COLUMNS) + extra_columns]
 
 
 def generate_synthetic_demands(

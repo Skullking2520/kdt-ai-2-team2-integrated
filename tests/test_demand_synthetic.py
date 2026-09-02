@@ -1,6 +1,7 @@
 import pandas as pd
 
 from moongcheap_ai.data_foundation.demand_synthetic import PRICE_OPTIONS, generate_synthetic_demands, prepare_demand_input
+from moongcheap_ai.data_foundation.grounded_demand import generate_grounded_demands
 
 
 def test_synthetic_demands_are_marked_and_catalog_bound() -> None:
@@ -36,3 +37,19 @@ def test_synthetic_price_comes_from_options_and_keeps_open_ended_upper_bound() -
             assert pd.isna(row.desired_price_max)
         else:
             assert row.desired_price_max == maximum
+
+
+def test_grounded_demands_use_catalog_taxonomy_and_reference_style(tmp_path) -> None:
+    products = tmp_path / "products.csv"
+    mapping = tmp_path / "mapping.csv"
+    taxonomy = tmp_path / "taxonomy.csv"
+    xpqa = tmp_path / "xpqa"
+    xpqa.mkdir()
+    pd.DataFrame({"source_product_id": ["p1"], "name": ["상품"]}).to_csv(products, index=False)
+    pd.DataFrame({"source_product_id": ["p1"], "product_name": ["상품"], "service_category_candidate_key": ["C1"], "service_category_name": ["카테고리"]}).to_csv(mapping, index=False)
+    pd.DataFrame({"service_category_key": ["C1"], "service_category_name": ["카테고리"], "facet_name_candidate": ["형태"], "source_field": ["product_form"], "normalized_value": ["정제"], "review_status": ["NEEDS_REVIEW"]}).to_csv(taxonomy, index=False)
+    pd.DataFrame({"lang": ["ko"], "question": ["어떤 상품이 있나요?"]}).to_csv(xpqa / "train.csv", index=False)
+    result = generate_grounded_demands(products, mapping, taxonomy, xpqa, None, count=2)
+    assert result["catalog_id"].eq("catalog-seed-p1").all()
+    assert result["extra_requirement"].str.contains("정제").all()
+    assert result["reference_source"].eq("xPQA").all()

@@ -23,6 +23,9 @@ Consumer reference 데이터의 문장은 위 근거와 매칭될 때만 synthet
 ```powershell
 python scripts/collect/consumer_reference_inventory.py
 python scripts/collect/consumer_reference_inventory.py --clone-xpqa
+python scripts/demand/generate_grounded_demands.py --count 100
 ```
 
 점검 결과는 `data/reports/consumer_reference/DATASET_STATUS.md`와 `dataset_inventory.json`에 생성된다. `data/raw/`와 `data/reports/`는 Git 제외 대상이다.
+
+생성 결과는 `data/synthetic/consumer_reference/grounded_demand_v1.csv`에 저장된다. 이 파일은 실제 사용자 요청이 아니라 테스트용 Synthetic Demand이며, 생성 후 기존 Labeling을 실행해야 한다.
