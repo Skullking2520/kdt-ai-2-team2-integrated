@@ -109,3 +109,15 @@ def test_llm_result_is_limited_to_taxonomy_codes() -> None:
     values, warnings = _apply_model_result(row, {"form": 99}, loader)
     assert values["form"]["code"] == 0
     assert warnings
+
+
+def test_hybrid_model_override_keeps_unmentioned_product_defaults() -> None:
+    loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}, {"code": 2, "value": "분말"}]},
+        {"name": "sugar", "order": 2, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "무설탕"}]},
+    ]}]})
+    row = pd.Series({"category_id": "C1"})
+    values, warnings = _apply_model_result(row, {"sugar": 1}, loader, [{"facet_name": "form", "value": "정제", "mapping_status": "MAPPED"}])
+    assert values["form"]["code"] == 1
+    assert values["sugar"]["code"] == 1
+    assert not warnings

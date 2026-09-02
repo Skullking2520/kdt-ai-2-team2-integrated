@@ -73,8 +73,8 @@ def _rule_result(demands: pd.DataFrame, loader: TaxonomyLoader, product_facet_ma
     return label_demands(demands, loader, product_facet_map=product_facet_map)
 
 
-def _apply_model_result(row: pd.Series, model_values: dict[str, Any], loader: TaxonomyLoader) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    defaults, warnings = loader.product_defaults(row["category_id"], [])
+def _apply_model_result(row: pd.Series, model_values: dict[str, Any], loader: TaxonomyLoader, product_rows: list[dict[str, Any]] | None = None) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    defaults, warnings = loader.product_defaults(row["category_id"], product_rows or [])
     allowed = _allowed(loader, row["category_id"])
     ordered_facets = list(allowed)
     for facet_name, raw_code in model_values.items():
@@ -115,7 +115,7 @@ def compare_labeling_methods(demands: pd.DataFrame, loader: TaxonomyLoader, prod
         base = {"demand_id": source["demand_id"], "catalog_id": source["catalog_id"], "category_id": source["category_id"], "is_substitutable": source["is_substitutable"], "rule_label": rule_row["label"], "rule_status": rule_row["label_status"], "rule_facet_values": rule_row["facet_values"]}
         model = model_values.get(str(source["demand_id"]))
         if model is not None:
-            values, warnings = _apply_model_result(source, model, loader)
+            values, warnings = _apply_model_result(source, model, loader, product_facet_map.get(str(source["catalog_id"]), []))
             model_label = loader.encode(values)
             model_status = "LABELED" if not warnings else "LABELED_WITH_REVIEW"
         else:
