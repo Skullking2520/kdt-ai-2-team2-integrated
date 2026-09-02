@@ -3,6 +3,7 @@ import pytest
 
 from moongcheap_ai.data_foundation.labeling import TaxonomyLoader, TaxonomyValidationError, build_product_facet_map, label_demands
 from moongcheap_ai.data_foundation.facet_codebook import build_clustering_input, load_codebook
+from moongcheap_ai.data_foundation.demand_label_comparison import _apply_model_result
 
 
 TAXONOMY = {"categories": [{"category_id": "C1", "facets": [{"name": "sugar_type", "order": 1, "values": [
@@ -98,3 +99,13 @@ def test_codebook_and_clustering_vector_keep_facet_identity(tmp_path) -> None:
     assert result.loc[0, "facet_label"] == "1"
     assert result.loc[0, "facet_1_form_code"] == 1
     assert result.loc[0, "taxonomy_version"] == "v2.1"
+
+
+def test_llm_result_is_limited_to_taxonomy_codes() -> None:
+    loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}]},
+    ]}]})
+    row = pd.Series({"category_id": "C1"})
+    values, warnings = _apply_model_result(row, {"form": 99}, loader)
+    assert values["form"]["code"] == 0
+    assert warnings
