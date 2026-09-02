@@ -1,6 +1,6 @@
 import pandas as pd
 
-from moongcheap_ai.data_foundation.demand_synthetic import generate_synthetic_demands, prepare_demand_input
+from moongcheap_ai.data_foundation.demand_synthetic import PRICE_OPTIONS, generate_synthetic_demands, prepare_demand_input
 
 
 def test_synthetic_demands_are_marked_and_catalog_bound() -> None:
@@ -23,3 +23,16 @@ def test_prepare_demand_input_normalizes_ranges_and_defaults() -> None:
     assert result.loc[0, "quantity"] == 1
     assert bool(result.loc[0, "is_substitutable"]) is False
     assert bool(result.loc[0, "synthetic"]) is True
+
+
+def test_synthetic_price_comes_from_options_and_keeps_open_ended_upper_bound() -> None:
+    catalog = pd.DataFrame({"catalog_seed_id": ["catalog-1"]})
+    result = generate_synthetic_demands(catalog, count=100, seed=11)
+    options = {code: (minimum, maximum) for code, minimum, maximum in PRICE_OPTIONS}
+    for row in result.itertuples():
+        minimum, maximum = options[row.price_option]
+        assert row.desired_price_min == minimum
+        if maximum is None:
+            assert pd.isna(row.desired_price_max)
+        else:
+            assert row.desired_price_max == maximum
