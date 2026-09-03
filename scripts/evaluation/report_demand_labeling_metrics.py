@@ -46,7 +46,7 @@ def _unresolved(value: object) -> bool:
     return bool(parsed) if isinstance(parsed, (list, dict)) else bool(str(value).strip())
 
 
-def _metric_row(method: str, frame: pd.DataFrame, status_column: str, label_column: str, taxonomy, model_failures: int = 0, model_calls: object = None) -> dict[str, object]:
+def _metric_row(method: str, frame: pd.DataFrame, status_column: str, label_column: str, taxonomy, model_failures: int = 0, model_calls: object = None, model_intervention_rows: object = None) -> dict[str, object]:
     labeled = frame[label_column].fillna("").astype(str).str.strip().ne("")
     status = frame[status_column].fillna("").astype(str)
     diagnostic = [_label_matches_expected(label, row, taxonomy) for label, (_, row) in zip(frame[label_column], frame.iterrows())]
@@ -58,6 +58,7 @@ def _metric_row(method: str, frame: pd.DataFrame, status_column: str, label_colu
         "review_rows": int(status.str.contains("REVIEW|FAILURE|LIMIT|BLOCKED", case=False, regex=True).sum()),
         "unresolved_rows": int(frame.get("unresolved_items", pd.Series([], dtype=str)).map(_unresolved).sum()) if "unresolved_items" in frame else None,
         "model_failure_rows": model_failures,
+        "model_intervention_rows": model_intervention_rows,
         "diagnostic_agreement_rows": sum(value is True for value in diagnostic_values),
         "diagnostic_comparable_rows": len(diagnostic_values),
         "diagnostic_agreement": round(sum(value is True for value in diagnostic_values) / len(diagnostic_values), 4) if diagnostic_values else None,
@@ -76,9 +77,9 @@ def build_metrics(input_dir: Path, taxonomy_path: Path) -> pd.DataFrame:
     hybrid = pd.read_csv(input_dir / "model2_rule_llm_hybrid_comparison_v1.csv", dtype=str).fillna("").merge(raw[["demand_id", "expected_facet_profile"]], on="demand_id", how="left")
     llm = pd.read_csv(input_dir / "model2_llm_labeled_200_v1.csv", dtype=str).fillna("").merge(raw[["demand_id", "expected_facet_profile", "scenario_type"]], on="demand_id", how="left")
     rows = [
-        _metric_row("RULE_BASELINE", rule, "label_status", "label", taxonomy, model_calls=0),
-        _metric_row("MODEL_ONLY_SAMPLE_200", llm, "model_status", "model_label", taxonomy, model_failures=int(llm["model_status"].eq("MODEL_FAILURE").sum()), model_calls=4),
-        _metric_row("HYBRID_RULE_FIRST", hybrid, "hybrid_status", "hybrid_label", taxonomy, model_failures=int(hybrid["hybrid_model_status"].eq("MODEL_FAILURE").sum()), model_calls=int(hybrid["hybrid_model_status"].isin(["LLM_ASSISTED", "MODEL_FAILURE"]).sum())),
+        _metric_row("RULE_BASELINE", rule, "label_status", "label", taxonomy, model_calls=0, model_intervention_rows=0),
+        _metric_row("MODEL_ONLY_SAMPLE_200", llm, "model_status", "model_label", taxonomy, model_failures=int(llm["model_status"].eq("MODEL_FAILURE").sum()), model_calls=4, model_intervention_rows=int(llm["model_status"].ne("MODEL_FAILURE").sum())),
+        _metric_row("HYBRID_RULE_FIRST", hybrid, "hybrid_status", "hybrid_label", taxonomy, model_failures=int(hybrid["hybrid_model_status"].eq("MODEL_FAILURE").sum()), model_calls=1, model_intervention_rows=int(hybrid["hybrid_model_status"].isin(["LLM_ASSISTED", "MODEL_FAILURE"]).sum())),
     ]
     result = pd.DataFrame(rows)
     result.attrs["rule_rows"] = len(rule)
