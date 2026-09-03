@@ -46,6 +46,35 @@ def _unresolved(value: object) -> bool:
     return bool(parsed) if isinstance(parsed, (list, dict)) else bool(str(value).strip())
 
 
+def _pair_metrics(frame: pd.DataFrame, label_column: str) -> dict[str, object]:
+    """Measure same-profile positives and same-product hard negatives."""
+    hp_pairs = hp_correct = hn_pairs = hn_correct = 0
+    if "profile_id" in frame:
+        for _, group in frame.groupby("profile_id", sort=False):
+            labels = group[label_column].fillna("").astype(str).tolist()
+            for left in range(len(labels)):
+                for right in range(left + 1, len(labels)):
+                    if labels[left] and labels[right]:
+                        hp_pairs += 1
+                        hp_correct += labels[left] == labels[right]
+    if "category_id" in frame and "profile_id" in frame:
+        for _, group in frame.groupby(["category_id"], sort=False):
+            records = group[["profile_id", label_column]].fillna("").to_dict("records")
+            for left in range(len(records)):
+                for right in range(left + 1, len(records)):
+                    if records[left]["profile_id"] != records[right]["profile_id"] and records[left][label_column] and records[right][label_column]:
+                        hn_pairs += 1
+                        hn_correct += records[left][label_column] != records[right][label_column]
+    return {
+        "hp_pairs": hp_pairs,
+        "hp_correct": hp_correct,
+        "hp_rate": round(hp_correct / hp_pairs, 4) if hp_pairs else None,
+        "hn_pairs": hn_pairs,
+        "hn_correct": hn_correct,
+        "hn_rate": round(hn_correct / hn_pairs, 4) if hn_pairs else None,
+    }
+
+
 def _metric_row(method: str, frame: pd.DataFrame, status_column: str, label_column: str, taxonomy, model_failures: int = 0, model_calls: object = None, model_intervention_rows: object = None) -> dict[str, object]:
     labeled = frame[label_column].fillna("").astype(str).str.strip().ne("")
     status = frame[status_column].fillna("").astype(str)
@@ -67,15 +96,17 @@ def _metric_row(method: str, frame: pd.DataFrame, status_column: str, label_colu
         "conflict_scenario_rows": int(frame.get("scenario_type", pd.Series([], dtype=str)).eq("CONFLICT").sum()) if "scenario_type" in frame else None,
         "out_of_taxonomy_rows": int(frame.get("scenario_type", pd.Series([], dtype=str)).eq("OUT_OF_TAXONOMY").sum()) if "scenario_type" in frame else None,
         "model_calls": model_calls,
+        **_pair_metrics(frame, label_column),
     }
 
 
 def build_metrics(input_dir: Path, taxonomy_path: Path) -> pd.DataFrame:
     taxonomy = load_taxonomy(taxonomy_path)
     raw = pd.read_csv(input_dir / "grounded_demand_5000_raw.csv", dtype=str).fillna("")
-    rule = pd.read_csv(input_dir / "demand_5000_rule_labeled_v1.csv", dtype=str).fillna("").merge(raw[["demand_id", "expected_facet_profile", "scenario_type"]], on="demand_id", how="left", suffixes=("", "_raw"))
-    hybrid = pd.read_csv(input_dir / "model2_rule_llm_hybrid_comparison_v1.csv", dtype=str).fillna("").merge(raw[["demand_id", "expected_facet_profile"]], on="demand_id", how="left")
-    llm = pd.read_csv(input_dir / "model2_llm_labeled_200_v1.csv", dtype=str).fillna("").merge(raw[["demand_id", "expected_facet_profile", "scenario_type"]], on="demand_id", how="left")
+    metadata = raw[["demand_id", "expected_facet_profile", "scenario_type", "profile_id", "product_reference"]]
+    rule = pd.read_csv(input_dir / "demand_5000_rule_labeled_v1.csv", dtype=str).fillna("").merge(metadata, on="demand_id", how="left", suffixes=("", "_raw"))
+    hybrid = pd.read_csv(input_dir / "model2_rule_llm_hybrid_comparison_v1.csv", dtype=str).fillna("").merge(metadata[["demand_id", "expected_facet_profile", "profile_id", "product_reference"]], on="demand_id", how="left")
+    llm = pd.read_csv(input_dir / "model2_llm_labeled_200_v1.csv", dtype=str).fillna("").merge(metadata, on="demand_id", how="left")
     rows = [
         _metric_row("RULE_BASELINE", rule, "label_status", "label", taxonomy, model_calls=0, model_intervention_rows=0),
         _metric_row("MODEL_ONLY_SAMPLE_200", llm, "model_status", "model_label", taxonomy, model_failures=int(llm["model_status"].eq("MODEL_FAILURE").sum()), model_calls=4, model_intervention_rows=int(llm["model_status"].ne("MODEL_FAILURE").sum())),
@@ -104,6 +135,8 @@ def main() -> None:
         "- Rule Baseline: Alias/규칙으로 전체를 빠르게 처리하며 검토 대상은 별도 표시합니다.",
         "- Model Only: 200건 Sample에 실제 Model 2를 적용한 결과입니다. 모델 실패는 정상 Label로 간주하지 않습니다.",
         "- Hybrid: Rule 성공 건은 Rule을 사용하고, 검토 대상만 제한적으로 Model을 호출합니다.",
+        "- HP(Hard Positive): 같은 Profile의 표현 변형 쌍이 같은 Label인지 측정합니다.",
+        "- HN(Hard Negative): 같은 Category의 서로 다른 Profile 쌍이 다른 Label인지 측정합니다.",
         "- 가격·수량·대체 가능 여부는 Labeling 정확도 지표가 아니라 Synthetic 정책 값입니다.",
     ]
     output_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

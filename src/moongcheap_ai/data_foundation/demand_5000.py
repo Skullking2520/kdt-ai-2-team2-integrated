@@ -147,16 +147,17 @@ def generate_demand_5000(
         candidates = [(facet, value) for facet, values in values_by_facet.items() for value in values]
         if not candidates:
             raise ValueError(f"taxonomy category has no values: {category_key}")
-        first_facet, first_value = candidates[index % len(candidates)]
+        profile_slot = index % 32
+        first_facet, first_value = candidates[profile_slot % len(candidates)]
         selected = {first_facet: first_value}
         if scenario in {"NORMAL_MULTI_FACET", "FULL_SENTENCE", "CONFLICT"} and len(candidates) > 1:
-            second_facet, second_value = candidates[(index + 1) % len(candidates)]
+            second_facet, second_value = candidates[(profile_slot + 1) % len(candidates)]
             if second_facet != first_facet:
                 selected[second_facet] = second_value
         profile_key = f"{category_key}:{product['source_product_id']}:{index % 32}"
         profile_index[profile_key] += 1
         pairs = " ".join(f"{value['value']}" for value in selected.values())
-        alternative = candidates[(index + 2) % len(candidates)][1]["value"]
+        alternative = candidates[(profile_slot + 2) % len(candidates)][1]["value"]
         conflict = next((value["value"] for facet, value in candidates if facet == first_facet and value["value"] != first_value["value"]), alternative)
         if scenario == "NO_EXTRA_REQUIREMENT":
             requirement = ""
