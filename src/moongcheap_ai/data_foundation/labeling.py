@@ -161,11 +161,11 @@ def load_taxonomy(path: Path) -> TaxonomyLoader:
 def build_product_facet_map(frame: pd.DataFrame) -> dict[str, list[dict[str, Any]]]:
     """Index mapped product facets by source ID and local catalog-seed ID."""
     result: dict[str, list[dict[str, Any]]] = {}
-    for _, row in frame.fillna("").iterrows():
-        if str(row.get("mapping_status", "MAPPED")).upper() != "MAPPED":
-            continue
-        payload = row.to_dict()
-        source_id = str(row.get("source_product_id", "")).strip()
+    normalized = frame.fillna("")
+    if "mapping_status" in normalized:
+        normalized = normalized[normalized["mapping_status"].astype(str).str.upper().eq("MAPPED")]
+    for payload in normalized.to_dict(orient="records"):
+        source_id = str(payload.get("source_product_id", "")).strip()
         for key in ([source_id, f"catalog-seed-{source_id}"] if source_id else []):
             result.setdefault(key, []).append(payload)
     return result

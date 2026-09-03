@@ -110,8 +110,8 @@ def compare_labeling_methods(demands: pd.DataFrame, loader: TaxonomyLoader, prod
             for demand_id in batch["demand_id"]:
                 model_errors[str(demand_id)] = str(exc)
     rows: list[dict[str, Any]] = []
-    for index, source in demands.fillna("").iterrows():
-        rule_row = rule.iloc[index]
+    for position, (_, source) in enumerate(demands.fillna("").iterrows()):
+        rule_row = rule.iloc[position]
         base = {"demand_id": source["demand_id"], "catalog_id": source["catalog_id"], "category_id": source["category_id"], "is_substitutable": source["is_substitutable"], "rule_label": rule_row["label"], "rule_status": rule_row["label_status"], "rule_facet_values": rule_row["facet_values"]}
         model = model_values.get(str(source["demand_id"]))
         if model is not None:
