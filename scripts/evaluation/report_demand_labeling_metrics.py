@@ -116,10 +116,20 @@ def build_metrics(input_dir: Path, taxonomy_path: Path) -> pd.DataFrame:
     metadata = raw[["demand_id", "expected_facet_profile", "scenario_type", "profile_id", "product_reference"]]
     rule = pd.read_csv(input_dir / "demand_5000_rule_labeled_v1.csv", dtype=str).fillna("").merge(metadata, on="demand_id", how="left", suffixes=("", "_raw"))
     hybrid = pd.read_csv(input_dir / "model2_rule_llm_hybrid_comparison_v1.csv", dtype=str).fillna("").merge(metadata[["demand_id", "expected_facet_profile", "profile_id", "product_reference"]], on="demand_id", how="left")
-    llm = pd.read_csv(input_dir / "model2_llm_labeled_200_v1.csv", dtype=str).fillna("").merge(metadata, on="demand_id", how="left")
+    full_model_path = input_dir / "model2_only_labeled_5000_v1.csv"
+    model_path = full_model_path if full_model_path.exists() else input_dir / "model2_llm_labeled_200_v1.csv"
+    llm = pd.read_csv(model_path, dtype=str).fillna("")
+    if "profile_id" not in llm.columns:
+        llm = llm.merge(metadata, on="demand_id", how="left")
+    execution_meta = {}
+    meta_path = input_dir / "model2_only_execution_v1.json"
+    if meta_path.exists():
+        execution_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    model_method = "MODEL_ONLY_FULL_5000" if full_model_path.exists() else "MODEL_ONLY_SAMPLE_200"
+    model_calls = execution_meta.get("model_calls", 4 if model_method.endswith("200") else None)
     rows = [
         _metric_row("RULE_BASELINE", rule, "label_status", "label", taxonomy, model_calls=0, model_intervention_rows=0),
-        _metric_row("MODEL_ONLY_SAMPLE_200", llm, "model_status", "model_label", taxonomy, model_failures=int(llm["model_status"].eq("MODEL_FAILURE").sum()), model_calls=4, model_intervention_rows=int(llm["model_status"].ne("MODEL_FAILURE").sum())),
+        _metric_row(model_method, llm, "model_status", "model_label", taxonomy, model_failures=int(llm["model_status"].eq("MODEL_FAILURE").sum()), model_calls=model_calls, model_intervention_rows=int(llm["model_status"].ne("MODEL_FAILURE").sum())),
         _metric_row("HYBRID_RULE_FIRST", hybrid, "hybrid_status", "hybrid_label", taxonomy, model_failures=int(hybrid["hybrid_model_status"].eq("MODEL_FAILURE").sum()), model_calls=1, model_intervention_rows=int(hybrid["hybrid_model_status"].isin(["LLM_ASSISTED", "MODEL_FAILURE"]).sum())),
     ]
     result = pd.DataFrame(rows)
@@ -138,7 +148,7 @@ def main() -> None:
     metrics.to_csv(output_csv, index=False, encoding="utf-8-sig")
     lines = [
         "# Demand Labeling 방식별 지표", "",
-        "Rule Baseline과 Hybrid는 5,000건 전체를 대상으로 집계했고, Model Only는 실제 실행된 대표 Sample 200건 기준입니다.",
+        "Rule Baseline, Model Only, Hybrid를 각각 실제 산출물 범위 기준으로 집계했습니다.",
         "`diagnostic_agreement`는 생성 시 사용한 expected facet profile과의 비교이며 Human Gold Accuracy가 아닙니다.", "",
         "```", metrics.to_string(index=False), "```", "",
         "## 해석", "",
