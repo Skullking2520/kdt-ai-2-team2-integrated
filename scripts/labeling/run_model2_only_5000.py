@@ -61,6 +61,8 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=50)
     parser.add_argument("--retry-batch-size", type=int, default=10)
     parser.add_argument("--group-by-category", action="store_true", help="Send each model batch from one Category only")
+    parser.add_argument("--request-timeout", type=int, default=300, help="Ollama request timeout in seconds")
+    parser.add_argument("--execution-meta", type=Path, default=None, help="Path for this run's execution metadata JSON")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     model = args.model or os.environ.get("MODEL2_MODEL", "") or os.environ.get("MODEL1_MODEL", "")
@@ -71,7 +73,7 @@ def main() -> None:
     facet_frame = pd.read_csv(args.product_facets, dtype=str).fillna("")
     used = set(demands["product_reference"].astype(str)) if "product_reference" in demands else set()
     facets = build_product_facet_map(facet_frame[facet_frame["source_product_id"].astype(str).isin(used)])
-    labeler = OllamaDemandLabeler(model)
+    labeler = OllamaDemandLabeler(model, timeout=args.request_timeout)
     completed: dict[str, dict[str, object]] = {}
     if args.resume and args.output.exists():
         previous = pd.read_csv(args.output, dtype=str).fillna("")
@@ -115,7 +117,8 @@ def main() -> None:
     result = pd.DataFrame(rows)
     _write(result, args.output)
     meta = {"provider": "ollama", "model": model, "rows": len(result), "model_calls": labeler.call_count, "model_failures": model_failures, "runtime_seconds": round(time.perf_counter() - started, 3), "batch_size": args.batch_size, "group_by_category": args.group_by_category}
-    meta_path = args.output.with_name("model2_only_execution_v1.json")
+    meta_path = args.execution_meta or args.output.with_name("model2_only_execution_v1.json")
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print({"status": "COMPLETED", **meta})
 

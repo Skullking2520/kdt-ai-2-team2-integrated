@@ -65,9 +65,10 @@ def _normalise_model_facet_values(raw: Any) -> dict[str, Any]:
 class OllamaDemandLabeler:
     provider = "ollama"
 
-    def __init__(self, model: str, endpoint: str = "http://localhost:11434") -> None:
+    def __init__(self, model: str, endpoint: str = "http://localhost:11434", timeout: int = 300) -> None:
         self.model = model
         self.endpoint = endpoint.rstrip("/")
+        self.timeout = timeout
         self.call_count = 0
         self.runtime_seconds = 0.0
 
@@ -94,7 +95,7 @@ class OllamaDemandLabeler:
         body = json.dumps({"model": self.model, "prompt": _prompt(rows, loader), "format": schema, "options": {"temperature": 0}, "stream": False, "think": False}, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(f"{self.endpoint}/api/generate", data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
-            with urllib.request.urlopen(request, timeout=300) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             parsed = json.loads(payload.get("response", ""))
             results = parsed if isinstance(parsed, list) else parsed.get("results")
