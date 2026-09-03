@@ -72,6 +72,16 @@ def _pair_metrics(frame: pd.DataFrame, label_column: str) -> dict[str, object]:
         "hn_pairs": hn_pairs,
         "hn_correct": hn_correct,
         "hn_rate": round(hn_correct / hn_pairs, 4) if hn_pairs else None,
+        "tp": hp_correct,
+        "tn": hn_correct,
+        "fp": hn_pairs - hn_correct,
+        "fn": hp_pairs - hp_correct,
+        "pair_precision": round(hp_correct / (hp_correct + hn_pairs - hn_correct), 4) if hp_correct + hn_pairs - hn_correct else None,
+        "pair_recall": round(hp_correct / hp_pairs, 4) if hp_pairs else None,
+        "pair_f1": round(2 * hp_correct / (2 * hp_correct + hn_pairs - hn_correct + hp_pairs - hp_correct), 4) if 2 * hp_correct + hn_pairs - hn_correct + hp_pairs - hp_correct else None,
+        "pair_accuracy": round((hp_correct + hn_correct) / (hp_pairs + hn_pairs), 4) if hp_pairs + hn_pairs else None,
+        "pair_error_rate": round((hn_pairs - hn_correct + hp_pairs - hp_correct) / (hp_pairs + hn_pairs), 4) if hp_pairs + hn_pairs else None,
+        "pair_coverage": round((hp_pairs + hn_pairs) / (len(frame) * (len(frame) - 1) / 2), 4) if len(frame) > 1 else None,
     }
 
 
@@ -137,6 +147,7 @@ def main() -> None:
         "- Hybrid: Rule 성공 건은 Rule을 사용하고, 검토 대상만 제한적으로 Model을 호출합니다.",
         "- HP(Hard Positive): 같은 Profile의 표현 변형 쌍이 같은 Label인지 측정합니다.",
         "- HN(Hard Negative): 같은 Category의 서로 다른 Profile 쌍이 다른 Label인지 측정합니다.",
+        "- TP/TN/FP/FN과 Pair Precision·Recall·F1·Accuracy·Error Rate·Coverage도 같은 쌍 기준으로 계산합니다.",
         "- 가격·수량·대체 가능 여부는 Labeling 정확도 지표가 아니라 Synthetic 정책 값입니다.",
     ]
     output_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
