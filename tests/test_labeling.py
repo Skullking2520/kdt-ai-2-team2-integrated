@@ -126,6 +126,16 @@ def test_model_single_facet_object_is_converted_to_mapping() -> None:
     assert result == {"form": {"value": "정제"}}
 
 
+def test_llm_empty_or_category_prefixed_facet_is_safe() -> None:
+    loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}]},
+    ]}]})
+    row = pd.Series({"category_id": "C1"})
+    values, warnings = _apply_model_result(row, {"health:C1:form": 1, "form": None}, loader)
+    assert values["form"]["code"] == 1
+    assert not warnings
+
+
 def test_hybrid_model_override_keeps_unmentioned_product_defaults() -> None:
     loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
         {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}, {"code": 2, "value": "분말"}]},

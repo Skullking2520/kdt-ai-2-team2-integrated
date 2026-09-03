@@ -127,12 +127,18 @@ def _apply_model_result(row: pd.Series, model_values: dict[str, Any], loader: Ta
     ordered_facets = list(allowed)
     for facet_name, raw_code in model_values.items():
         facet_key = str(facet_name).strip()
+        if ":" in facet_key:
+            facet_key = facet_key.rsplit(":", 1)[-1]
         numeric_match = re.fullmatch(r"(?:facet[_ -]?)?(\d+)(?:\.0)?", facet_key, flags=re.IGNORECASE)
         if numeric_match and int(numeric_match.group(1)) < len(ordered_facets):
             facet_name = ordered_facets[int(numeric_match.group(1))]
         else:
             facet_name = next((name for name in ordered_facets if name.casefold() == facet_key.casefold()), facet_key)
+        if raw_code is None:
+            continue
         code = raw_code.get("code") if isinstance(raw_code, dict) else raw_code
+        if isinstance(raw_code, dict) and code is None and raw_code.get("value") is None:
+            continue
         matched = [value for value in allowed.get(facet_name, []) if str(value.get("code", "")) == str(code)]
         if not matched:
             text = str(raw_code.get("value", "") if isinstance(raw_code, dict) else raw_code).strip()
