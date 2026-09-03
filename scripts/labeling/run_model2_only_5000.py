@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--model", default=None)
     parser.add_argument("--batch-size", type=int, default=50)
     parser.add_argument("--retry-batch-size", type=int, default=10)
+    parser.add_argument("--group-by-category", action="store_true", help="Send each model batch from one Category only")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     model = args.model or os.environ.get("MODEL2_MODEL", "") or os.environ.get("MODEL1_MODEL", "")
@@ -78,11 +79,14 @@ def main() -> None:
     started = time.perf_counter()
     model_failures = 0
     rows = []
-    for start in range(0, len(demands), args.batch_size):
-        batch = demands.iloc[start:start + args.batch_size]
+    if args.group_by_category:
+        batches = [group.iloc[start:start + args.batch_size] for _, group in demands.groupby("category_id", sort=True) for start in range(0, len(group), args.batch_size)]
+    else:
+        batches = [demands.iloc[start:start + args.batch_size] for start in range(0, len(demands), args.batch_size)]
+    for batch_number, batch in enumerate(batches, 1):
         if completed and all(str(demand_id) in completed and str(completed[str(demand_id)].get("model_status", "")).startswith("LABELED") for demand_id in batch["demand_id"]):
             rows.extend(completed[str(demand_id)] for demand_id in batch["demand_id"])
-            print({"completed_rows": min(start + len(batch), len(demands)), "total_rows": len(demands), "model_calls": labeler.call_count, "resumed": True}, flush=True)
+            print({"completed_batches": batch_number, "total_batches": len(batches), "model_calls": labeler.call_count, "resumed": True}, flush=True)
             continue
         payload = []
         for _, row in batch.iterrows():
@@ -107,10 +111,10 @@ def main() -> None:
                 model_failures += 1
             rows.append(row)
         _write(pd.DataFrame(rows), args.output)
-        print({"completed_rows": min(start + len(batch), len(demands)), "total_rows": len(demands), "model_calls": labeler.call_count}, flush=True)
+        print({"completed_batches": batch_number, "total_batches": len(batches), "model_calls": labeler.call_count}, flush=True)
     result = pd.DataFrame(rows)
     _write(result, args.output)
-    meta = {"provider": "ollama", "model": model, "rows": len(result), "model_calls": labeler.call_count, "model_failures": model_failures, "runtime_seconds": round(time.perf_counter() - started, 3), "batch_size": args.batch_size}
+    meta = {"provider": "ollama", "model": model, "rows": len(result), "model_calls": labeler.call_count, "model_failures": model_failures, "runtime_seconds": round(time.perf_counter() - started, 3), "batch_size": args.batch_size, "group_by_category": args.group_by_category}
     meta_path = args.output.with_name("model2_only_execution_v1.json")
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print({"status": "COMPLETED", **meta})
