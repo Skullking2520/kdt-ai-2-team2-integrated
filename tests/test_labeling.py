@@ -3,7 +3,7 @@ import pytest
 
 from moongcheap_ai.data_foundation.labeling import TaxonomyLoader, TaxonomyValidationError, build_product_facet_map, label_demands
 from moongcheap_ai.data_foundation.facet_codebook import build_clustering_input, load_codebook
-from moongcheap_ai.data_foundation.demand_label_comparison import _apply_model_result
+from moongcheap_ai.data_foundation.demand_label_comparison import _apply_model_result, _normalise_model_facet_values
 
 
 TAXONOMY = {"categories": [{"category_id": "C1", "facets": [{"name": "sugar_type", "order": 1, "values": [
@@ -109,6 +109,21 @@ def test_llm_result_is_limited_to_taxonomy_codes() -> None:
     values, warnings = _apply_model_result(row, {"form": 99}, loader)
     assert values["form"]["code"] == 0
     assert warnings
+
+
+def test_llm_numeric_facet_key_is_resolved_by_position() -> None:
+    loader = TaxonomyLoader({"categories": [{"category_id": "C1", "facets": [
+        {"name": "form", "order": 1, "values": [{"code": 0, "value": "ALL"}, {"code": 1, "value": "정제"}]},
+    ]}]})
+    row = pd.Series({"category_id": "C1"})
+    values, warnings = _apply_model_result(row, {" facet_0 ": 1}, loader)
+    assert values["form"]["code"] == 1
+    assert not warnings
+
+
+def test_model_single_facet_object_is_converted_to_mapping() -> None:
+    result = _normalise_model_facet_values({"facet_name": "form", "value": "정제"})
+    assert result == {"form": {"value": "정제"}}
 
 
 def test_hybrid_model_override_keeps_unmentioned_product_defaults() -> None:

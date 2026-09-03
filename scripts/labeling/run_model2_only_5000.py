@@ -22,6 +22,35 @@ def _write(frame: pd.DataFrame, path: Path) -> None:
     frame.to_csv(path, index=False, encoding="utf-8-sig")
 
 
+def _classify_with_retries(labeler, payload: list[dict[str, object]], loader, retry_batch_size: int) -> tuple[dict[str, dict[str, object]], dict[str, str]]:
+    """Retry malformed or incomplete responses with smaller, bounded batches."""
+    values: dict[str, dict[str, object]] = {}
+    errors: dict[str, str] = {}
+    queue = [payload]
+    while queue:
+        chunk = queue.pop(0)
+        try:
+            response = labeler.classify(chunk, loader)
+        except LLMLabelingError as exc:
+            if len(chunk) > retry_batch_size:
+                midpoint = max(retry_batch_size, len(chunk) // 2)
+                queue[0:0] = [chunk[:midpoint], chunk[midpoint:]]
+            else:
+                for item in chunk:
+                    errors[str(item["demand_id"])] = str(exc)
+            continue
+        values.update(response)
+        missing = [item for item in chunk if str(item["demand_id"]) not in response]
+        if missing:
+            if len(missing) > retry_batch_size:
+                for start in range(0, len(missing), retry_batch_size):
+                    queue.append(missing[start:start + retry_batch_size])
+            else:
+                for item in missing:
+                    errors[str(item["demand_id"])] = "model response omitted demand_id"
+    return values, errors
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Model 2 only over grounded Demand rows")
     parser.add_argument("--input", type=Path, default=Path("data/processed/demand_5000_v1/grounded_demand_5000_raw.csv"))
@@ -30,6 +59,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("data/processed/demand_5000_v1/model2_only_labeled_5000_v1.csv"))
     parser.add_argument("--model", default=None)
     parser.add_argument("--batch-size", type=int, default=50)
+    parser.add_argument("--retry-batch-size", type=int, default=10)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     model = args.model or os.environ.get("MODEL2_MODEL", "") or os.environ.get("MODEL1_MODEL", "")
@@ -58,14 +88,7 @@ def main() -> None:
         for _, row in batch.iterrows():
             defaults, _ = loader.product_defaults(row["category_id"], facets.get(str(row["catalog_id"]), []))
             payload.append({"demand_id": row["demand_id"], "category_id": row["category_id"], "extra_requirement": row["extra_requirement"], "product_defaults": defaults})
-        try:
-            model_values = labeler.classify(payload, loader)
-        except LLMLabelingError as exc:
-            model_values = {}
-            model_failures += len(batch)
-            error = str(exc)
-        else:
-            error = ""
+        model_values, model_errors = _classify_with_retries(labeler, payload, loader, args.retry_batch_size)
         for _, source in batch.iterrows():
             demand_id = str(source["demand_id"])
             previous = completed.get(demand_id)
@@ -79,7 +102,8 @@ def main() -> None:
                 continue
             else:
                 row = source.to_dict()
-                row.update({"model_label": "", "model_status": "MODEL_FAILURE", "model_warnings": json.dumps([error or "missing LLM result"], ensure_ascii=False), "model_facet_values": ""})
+                warning = model_errors.get(demand_id, "missing LLM result")
+                row.update({"model_label": "", "model_status": "MODEL_FAILURE", "model_warnings": json.dumps([warning], ensure_ascii=False), "model_facet_values": ""})
                 model_failures += 1
             rows.append(row)
         _write(pd.DataFrame(rows), args.output)
