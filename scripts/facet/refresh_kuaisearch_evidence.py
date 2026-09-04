@@ -18,11 +18,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Add KuaiSearch Lite evidence to an existing Facet evidence snapshot")
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--evidence-dir", type=Path, default=Path("data/interim/facet_evidence"))
+    parser.add_argument("--translated", type=Path, default=None, help="Optional Korean translation parquet for query matching")
     args = parser.parse_args()
     unified_path = args.evidence_dir / "facet_evidence_unified.parquet"
     if not unified_path.exists():
         raise SystemExit(f"existing evidence not found: {unified_path}")
-    kuai = build_kuaisearch(args.root / "data/raw/consumer_reference/kuaisearch", args.evidence_dir / "kuaiseach_health_queries.parquet")
+    kuai = build_kuaisearch(args.root / "data/raw/consumer_reference/kuaisearch", args.evidence_dir / "kuaiseach_health_queries.parquet", args.translated)
     unified = pd.concat([pd.read_parquet(unified_path), kuai], ignore_index=True).drop_duplicates(subset=["evidence_id"])
     aggregate = aggregate_evidence(unified)
     review = build_review_queue(aggregate, unified)

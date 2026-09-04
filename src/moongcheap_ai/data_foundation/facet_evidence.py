@@ -136,7 +136,7 @@ def build_aihub(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=UNIFIED_COLUMNS) if rows else _empty()
 
 
-def build_kuaisearch(directory: Path, query_output: Path | None = None) -> pd.DataFrame:
+def build_kuaisearch(directory: Path, query_output: Path | None = None, translated_path: Path | None = None) -> pd.DataFrame:
     """Join Lite item metadata to session behavior without retaining user IDs."""
     item_path = directory / "items_lite" / "train.jsonl"
     recall_path = directory / "recall_lite" / "train.jsonl"
@@ -152,6 +152,10 @@ def build_kuaisearch(directory: Path, query_output: Path | None = None) -> pd.Da
             text = " | ".join(_text(item.get(key)) for key in ("item_title", "category_level1_name", "category_level2_name", "category_level3_name"))
             if HEALTH_TERMS.search(text):
                 health_items[str(item.get("item_id"))] = item
+    translation_map: dict[str, str] = {}
+    if translated_path and translated_path.exists():
+        translated = pd.read_parquet(translated_path).fillna("")
+        translation_map = dict(zip(translated["query_raw"].astype(str), translated["query_translated"].astype(str)))
     rows: list[dict[str, Any]] = []
     query_rows: list[dict[str, Any]] = []
     with recall_path.open(encoding="utf-8") as handle:
@@ -171,7 +175,7 @@ def build_kuaisearch(directory: Path, query_output: Path | None = None) -> pd.Da
             query_rows.append({"source": "kuaisearch", "query_raw": query, "language": "zh", "health_item_id": "|".join(sorted(matched)), "behavior_evidence": behavior, "source_record_id": _text(record.get("session_id"))})
             for item_id in sorted(matched):
                 item = health_items[item_id]
-                text = f"{query} | {_text(item.get('item_title'))}"
+                text = f"{translation_map.get(query, '') or query} | {_text(item.get('item_title'))}"
                 for attribute, patterns in ATTRIBUTE_PATTERNS.items():
                     for value, pattern in patterns:
                         if re.search(pattern, text, re.I):
