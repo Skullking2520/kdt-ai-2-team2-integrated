@@ -22,7 +22,7 @@ UNIFIED_COLUMNS = [
     "license_status", "local_only",
 ]
 
-HEALTH_TERMS = re.compile(r"건강|건기식|영양|비타민|미네랄|프로바이오틱|유산균|홍삼|인삼|오메가|콜라겐|단백질|루테인|마그네슘|supplement|vitamin|probiotic|collagen|protein|ginseng|omega|lutein", re.I)
+HEALTH_TERMS = re.compile(r"건강|건기식|영양|비타민|미네랄|프로바이오틱|유산균|홍삼|인삼|오메가|콜라겐|단백질|루테인|마그네슘|supplement|vitamin|probiotic|collagen|protein|ginseng|omega|lutein|保健|维生素|益生菌|胶原蛋白|蛋白质|人参|鱼油|叶黄素|营养|膳食", re.I)
 MEDICAL_TERMS = re.compile(r"질병|질환|진단|치료|처방|부작용|완치|암|당뇨 치료|medical|diagnos|cure|treat", re.I)
 ATTRIBUTE_PATTERNS: dict[str, list[tuple[str, str]]] = {
     "product_form": [("tablet", r"정제|타블렛|tablet"), ("capsule", r"캡슐|capsule"), ("powder", r"분말|가루|powder"), ("liquid", r"액상|액체|liquid"), ("stick", r"스틱|stick")],
@@ -136,6 +136,53 @@ def build_aihub(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=UNIFIED_COLUMNS) if rows else _empty()
 
 
+def build_kuaisearch(directory: Path, query_output: Path | None = None) -> pd.DataFrame:
+    """Join Lite item metadata to session behavior without retaining user IDs."""
+    item_path = directory / "items_lite" / "train.jsonl"
+    recall_path = directory / "recall_lite" / "train.jsonl"
+    if not item_path.exists() or not recall_path.exists():
+        return _empty()
+    health_items: dict[str, dict[str, Any]] = {}
+    with item_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            text = " | ".join(_text(item.get(key)) for key in ("item_title", "category_level1_name", "category_level2_name", "category_level3_name"))
+            if HEALTH_TERMS.search(text):
+                health_items[str(item.get("item_id"))] = item
+    rows: list[dict[str, Any]] = []
+    query_rows: list[dict[str, Any]] = []
+    with recall_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            purchased = {str(value) for value in record.get("purchased_item_ids", [])}
+            clicked = {str(value) for value in record.get("clicked_item_ids", [])}
+            impressed = {str(value) for value in record.get("impressed_item_ids", [])}
+            matched = (purchased | clicked | impressed) & health_items.keys()
+            query = _text(record.get("query"))
+            if not matched and not HEALTH_TERMS.search(query):
+                continue
+            behavior = "PURCHASED_HEALTH" if purchased & health_items.keys() else "CLICKED_HEALTH" if clicked & health_items.keys() else "IMPRESSION_HEALTH"
+            query_rows.append({"source": "kuaisearch", "query_raw": query, "language": "zh", "health_item_id": "|".join(sorted(matched)), "behavior_evidence": behavior, "source_record_id": _text(record.get("session_id"))})
+            for item_id in sorted(matched):
+                item = health_items[item_id]
+                text = f"{query} | {_text(item.get('item_title'))}"
+                for attribute, patterns in ATTRIBUTE_PATTERNS.items():
+                    for value, pattern in patterns:
+                        if re.search(pattern, text, re.I):
+                            rows.append(_row("kuaisearch", "CONSUMER_SEARCH", record.get("session_id"), item_id, "health-functional-food", text, attribute, value, term=value, behavior=behavior, license_status="MIT"))
+    if query_output is not None:
+        query_output.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(query_rows, columns=["source", "query_raw", "language", "health_item_id", "behavior_evidence", "source_record_id"]).to_parquet(query_output, index=False)
+        pd.DataFrame(query_rows, columns=["source", "query_raw", "language", "health_item_id", "behavior_evidence", "source_record_id"]).to_csv(query_output.with_name("kuaiseach_health_queries_preview.csv"), index=False, encoding="utf-8-sig")
+    return pd.DataFrame(rows, columns=UNIFIED_COLUMNS) if rows else _empty()
+
+
 def aggregate_evidence(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return pd.DataFrame(columns=["category", "facet_candidate", "value_candidate", "mfds_document_count", "mfds_document_ratio", "seller_document_count", "seller_document_ratio", "search_query_count", "search_click_count", "search_purchase_count", "qa_count", "review_count", "korean_expression_count", "source_count", "product_verifiability", "consumer_salience", "commercial_salience", "new_facet_candidate", "review_status"])
@@ -195,7 +242,7 @@ def run_pipeline(root: Path, output_dir: Path, enable_reviews: bool = False) -> 
     seller_frame = build_seller(seller) if seller.exists() else _empty(); evidence.append(seller_frame); statuses.append({"source": "domeggook", "status": "AVAILABLE" if seller.exists() else "NOT_ACQUIRED", "rows": len(seller_frame)})
     esci = root / "data/processed/esci"; esci_frame = build_esci(esci) if (esci / "queries.parquet").exists() and (esci / "products.parquet").exists() else _empty(); evidence.append(esci_frame); statuses.append({"source": "esci", "status": "AVAILABLE" if not esci_frame.empty else "NO_HEALTH_MATCH", "rows": len(esci_frame)})
     xpqa = root / "data/raw/consumer_reference/xpqa"; xpqa_frame = build_xpqa(xpqa) if xpqa.exists() else _empty(); evidence.append(xpqa_frame); statuses.append({"source": "xpqa", "status": "AVAILABLE" if not xpqa_frame.empty else "NO_HEALTH_MATCH", "rows": len(xpqa_frame)})
-    kuai = root / "data/raw/consumer_reference/kuaisearch"; statuses.append({"source": "kuaisearch", "status": "NOT_ACQUIRED", "rows": 0})
+    kuai = root / "data/raw/consumer_reference/kuaisearch"; kuai_frame = build_kuaisearch(kuai, output_dir / "kuaiseach_health_queries.parquet"); evidence.append(kuai_frame); statuses.append({"source": "kuaisearch", "status": "AVAILABLE" if (kuai / "items_lite" / "train.jsonl").exists() else "NOT_ACQUIRED", "rows": len(kuai_frame)})
     reviews = root / "data/raw/facet_evidence/amazon_reviews"; statuses.append({"source": "amazon_reviews", "status": "ENABLED" if enable_reviews and reviews.exists() else "NOT_ACQUIRED", "rows": 0})
     aihub = root / "data/interim/facet_discovery/aihub_repeated_terms.csv"; aihub_frame = build_aihub(aihub); evidence.append(aihub_frame); statuses.append({"source": "aihub", "status": "AVAILABLE_EXPRESSION_REFERENCE" if aihub.exists() else "NOT_ACQUIRED", "rows": len(aihub_frame)})
     unified = pd.concat(evidence, ignore_index=True) if evidence else _empty()
